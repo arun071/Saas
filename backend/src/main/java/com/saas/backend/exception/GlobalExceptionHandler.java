@@ -11,6 +11,15 @@ import java.util.Map;
 @lombok.extern.slf4j.Slf4j
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(org.springframework.security.authentication.BadCredentialsException.class)
+    public ResponseEntity<Map<String, String>> handleBadCredentialsException(
+            org.springframework.security.authentication.BadCredentialsException e) {
+        log.warn("Login failed: {}", e.getMessage());
+        Map<String, String> error = new HashMap<>();
+        error.put("message", "Invalid email or password");
+        return ResponseEntity.status(401).body(error);
+    }
+
     @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
     public ResponseEntity<Map<String, String>> handleAccessDeniedException(
             org.springframework.security.access.AccessDeniedException e) {

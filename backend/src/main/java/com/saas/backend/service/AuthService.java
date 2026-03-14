@@ -73,6 +73,7 @@ public class AuthService {
                                 .build();
         }
 
+        @Transactional(readOnly = true)
         public AuthResponse login(LoginRequest request) {
                 authenticationManager.authenticate(
                                 new UsernamePasswordAuthenticationToken(
