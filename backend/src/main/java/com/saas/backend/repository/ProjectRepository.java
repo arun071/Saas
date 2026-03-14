@@ -10,5 +10,5 @@ import java.util.UUID;
 
 @Repository
 public interface ProjectRepository extends JpaRepository<Project, UUID> {
-    Page<Project> findByWorkspaceIdAndOrganization_Id(UUID workspaceId, UUID organizationId, Pageable pageable);
+    Page<Project> findByWorkspaceId(UUID workspaceId, Pageable pageable);
 }

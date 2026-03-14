@@ -1,10 +1,8 @@
 package com.saas.backend.service;
 
 import com.saas.backend.dto.DomainDtos.WorkspaceDto;
-import com.saas.backend.entity.Organization;
 import com.saas.backend.entity.Workspace;
 import com.saas.backend.mapper.EntityMapper;
-import com.saas.backend.repository.OrganizationRepository;
 import com.saas.backend.repository.WorkspaceRepository;
 import com.saas.backend.util.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -26,58 +24,45 @@ import java.util.UUID;
 public class WorkspaceService {
 
     private final WorkspaceRepository workspaceRepository;
-    private final OrganizationRepository organizationRepository;
     private final EntityMapper entityMapper;
 
     @PreAuthorize("hasAuthority('ORG_ADMIN')")
     public WorkspaceDto createWorkspace(String name) {
-        UUID orgId = TenantContext.getCurrentTenant();
-        Organization organization = organizationRepository.findById(orgId)
-                .orElseThrow(() -> new RuntimeException("Organization not found"));
+        String schemaName = TenantContext.getCurrentTenant();
 
         Workspace workspace = Workspace.builder()
                 .name(name)
-                .organization(organization)
                 .build();
 
         workspace = workspaceRepository.save(workspace);
-        log.info("Created workspace: {} (ID: {}) for organization: {}", workspace.getName(), workspace.getId(), orgId);
+        log.info("Created workspace: {} (ID: {}) in schema: {}", workspace.getName(), workspace.getId(), schemaName);
         return entityMapper.toDto(workspace);
     }
 
     public Page<WorkspaceDto> listWorkspaces(Pageable pageable) {
-        UUID orgId = TenantContext.getCurrentTenant();
-        return workspaceRepository.findByOrganization_Id(orgId, pageable)
+        return workspaceRepository.findAll(pageable)
                 .map(entityMapper::toDto);
     }
 
     @PreAuthorize("hasAuthority('ORG_ADMIN')")
     public WorkspaceDto updateWorkspace(UUID id, String name) {
-        UUID orgId = TenantContext.getCurrentTenant();
+        String schemaName = TenantContext.getCurrentTenant();
         Workspace workspace = workspaceRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Workspace not found"));
 
-        if (!workspace.getOrganization().getId().equals(orgId)) {
-            throw new RuntimeException("Unauthorized access");
-        }
-
         workspace.setName(name);
         Workspace updated = workspaceRepository.save(workspace);
-        log.info("Updated workspace ID: {} for organization: {}", id, orgId);
+        log.info("Updated workspace ID: {} in schema: {}", id, schemaName);
         return entityMapper.toDto(updated);
     }
 
     @PreAuthorize("hasAuthority('ORG_ADMIN')")
     public void deleteWorkspace(UUID id) {
-        UUID orgId = TenantContext.getCurrentTenant();
+        String schemaName = TenantContext.getCurrentTenant();
         Workspace workspace = workspaceRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Workspace not found"));
 
-        if (!workspace.getOrganization().getId().equals(orgId)) {
-            throw new RuntimeException("Unauthorized access");
-        }
-
         workspaceRepository.delete(workspace);
-        log.info("Deleted workspace ID: {} for organization: {}", id, orgId);
+        log.info("Deleted workspace ID: {} in schema: {}", id, schemaName);
     }
 }

@@ -19,7 +19,6 @@ public class DomainDtos {
     public static class WorkspaceDto {
         private UUID id;
         private String name;
-        private UUID organizationId;
         private LocalDateTime createdAt;
     }
 
@@ -31,7 +30,6 @@ public class DomainDtos {
         private UUID id;
         private String name;
         private UUID workspaceId;
-        private UUID organizationId;
         private LocalDateTime createdAt;
     }
 
@@ -49,7 +47,6 @@ public class DomainDtos {
         private String assignedUserName;
         private UUID projectId;
         private String projectName;
-        private UUID organizationId;
         private LocalDateTime dueDate;
         private LocalDateTime createdAt;
     }

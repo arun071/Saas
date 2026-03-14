@@ -44,10 +44,6 @@ public class Todo {
     @JoinColumn(name = "project_id", nullable = false)
     private Project project;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "organization_id", nullable = false)
-    private Organization organization;
-
     @Column(name = "due_date")
     private LocalDateTime dueDate;
 

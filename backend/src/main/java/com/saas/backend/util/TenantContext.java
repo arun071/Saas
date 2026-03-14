@@ -1,22 +1,20 @@
 package com.saas.backend.util;
 
-import java.util.UUID;
-
 /**
- * Holds the organization context (Tenant ID) for the current thread.
- * This is populated by the JwtAuthenticationFilter and used by services
- * to ensure database operations are isolated locally to the user's
- * organization.
+ * Holds the tenant identifier (Schema name) for the current thread.
+ * This is populated by the JwtAuthenticationFilter and used by the
+ * MultiTenantConnectionProvider to switch database schemas.
  */
 public class TenantContext {
-    private static final ThreadLocal<UUID> currentTenant = new ThreadLocal<>();
+    public static final String DEFAULT_TENANT = "saas_db";
+    private static final ThreadLocal<String> currentTenant = new ThreadLocal<>();
 
-    public static void setCurrentTenant(UUID tenantId) {
+    public static void setCurrentTenant(String tenantId) {
         currentTenant.set(tenantId);
     }
 
-    public static UUID getCurrentTenant() {
-        return currentTenant.get();
+    public static String getCurrentTenant() {
+        return currentTenant.get() != null ? currentTenant.get() : DEFAULT_TENANT;
     }
 
     public static void clear() {

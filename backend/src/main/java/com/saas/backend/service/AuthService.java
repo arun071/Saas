@@ -25,6 +25,7 @@ public class AuthService {
 
         private final UserRepository userRepository;
         private final OrganizationRepository organizationRepository;
+        private final TenantProvisioningService tenantProvisioningService;
         private final PasswordEncoder passwordEncoder;
         private final JwtUtils jwtUtils;
         private final AuthenticationManager authenticationManager;
@@ -37,12 +38,14 @@ public class AuthService {
          */
         @Transactional
         public AuthResponse register(RegisterRequest request) {
-                // Create Organization
-                Organization organization = Organization.builder()
-                                .name(request.getOrganizationName())
-                                .build();
-                organization = organizationRepository.save(organization);
-                log.info("Registered new organization: {} (ID: {})", organization.getName(), organization.getId());
+                // Create Organization and provision tenant schema (runs in its own transaction)
+                Organization organization = tenantProvisioningService.createTenant(request.getOrganizationName());
+                log.info("Tenant provisioned for organization: {} (ID: {})", organization.getName(),
+                                organization.getId());
+
+                // Re-attach the Organization to the current persistence context.
+                // createTenant() runs with REQUIRES_NEW, so the returned entity is detached.
+                organization = organizationRepository.getReferenceById(organization.getId());
 
                 // Create Admin User
                 User admin = User.builder()

@@ -11,11 +11,9 @@ import java.util.UUID;
 
 @Repository
 public interface TodoRepository extends JpaRepository<Todo, UUID> {
-    Page<Todo> findByProjectIdAndOrganization_Id(UUID projectId, UUID organizationId, Pageable pageable);
+    Page<Todo> findByProjectId(UUID projectId, Pageable pageable);
 
-    Page<Todo> findByAssignedUserIdAndOrganization_Id(UUID assignedUserId, UUID organizationId, Pageable pageable);
+    Page<Todo> findByAssignedUserId(UUID assignedUserId, Pageable pageable);
 
-    Page<Todo> findByStatusAndOrganization_Id(TodoStatus status, UUID organizationId, Pageable pageable);
-
-    Page<Todo> findByOrganization_Id(UUID organizationId, Pageable pageable);
+    Page<Todo> findByStatus(TodoStatus status, Pageable pageable);
 }
