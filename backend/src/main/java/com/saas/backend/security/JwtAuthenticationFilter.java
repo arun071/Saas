@@ -1,0 +1,73 @@
+package com.saas.backend.security;
+
+import com.saas.backend.util.TenantContext;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import org.springframework.lang.NonNull;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+import java.util.UUID;
+
+@Component
+@RequiredArgsConstructor
+@lombok.extern.slf4j.Slf4j
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private final JwtUtils jwtUtils;
+    private final UserDetailsService userDetailsService;
+
+    @Override
+    protected void doFilterInternal(
+            @NonNull HttpServletRequest request,
+            @NonNull HttpServletResponse response,
+            @NonNull FilterChain filterChain) throws ServletException, IOException {
+        final String authHeader = request.getHeader("Authorization");
+        final String jwt;
+        final String userEmail;
+
+        try {
+            if (authHeader != null && authHeader.startsWith("Bearer ") && authHeader.length() > 7) {
+                jwt = authHeader.substring(7);
+                try {
+                    userEmail = jwtUtils.extractUsername(jwt);
+                } catch (Exception e) {
+                    log.warn("Failed to extract username from JWT: {}", e.getMessage());
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
+                if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                    UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
+                    if (jwtUtils.isTokenValid(jwt, userDetails)) {
+                        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                                userDetails,
+                                null,
+                                userDetails.getAuthorities());
+                        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(authToken);
+
+                        // Set TenantContext from JWT claim
+                        String orgId = jwtUtils.extractClaim(jwt, claims -> claims.get("org_id", String.class));
+                        if (orgId != null) {
+                            TenantContext.setCurrentTenant(UUID.fromString(orgId));
+                            log.debug("Identified tenant context for user: {} (Org ID: {})", userEmail, orgId);
+                        }
+                    }
+                }
+            }
+            filterChain.doFilter(request, response);
+        } finally {
+            TenantContext.clear();
+        }
+    }
+}

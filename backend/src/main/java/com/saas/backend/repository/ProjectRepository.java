@@ -1,6 +1,6 @@
 package com.saas.backend.repository;
 
-import com.saas.backend.entity.Workspace;
+import com.saas.backend.entity.Project;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -9,6 +9,6 @@ import org.springframework.stereotype.Repository;
 import java.util.UUID;
 
 @Repository
-public interface WorkspaceRepository extends JpaRepository<Workspace, UUID> {
-    Page<Workspace> findByOrganization_Id(UUID organizationId, Pageable pageable);
+public interface ProjectRepository extends JpaRepository<Project, UUID> {
+    Page<Project> findByWorkspaceIdAndOrganization_Id(UUID workspaceId, UUID organizationId, Pageable pageable);
 }
