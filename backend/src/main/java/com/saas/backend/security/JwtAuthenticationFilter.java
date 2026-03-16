@@ -12,12 +12,21 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import com.saas.backend.repository.UserRepository;
+import com.saas.backend.entity.User;
+import com.saas.backend.enums.MembershipStatus;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
+/**
+ * Filter that intercepts every request to validate the JWT in the Authorization
+ * header.
+ * If valid, it sets the Spring Security context and the TenantContext for
+ * database schema isolation.
+ */
 @Component
 @RequiredArgsConstructor
 @lombok.extern.slf4j.Slf4j
@@ -25,6 +34,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
+    private final UserRepository userRepository;
 
     @Override
     protected void doFilterInternal(
@@ -32,63 +42,89 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain) throws ServletException, IOException {
         final String authHeader = request.getHeader("Authorization");
-        final String jwt;
-        final String userEmail;
 
         try {
-            if (authHeader != null && authHeader.startsWith("Bearer ") && authHeader.length() > 7) {
-                jwt = authHeader.substring(7);
-                try {
-                    userEmail = jwtUtils.extractUsername(jwt);
-                } catch (Exception e) {
-                    log.warn("Failed to extract username from JWT: {}", e.getMessage());
-                    filterChain.doFilter(request, response);
-                    return;
-                }
+            if (isValidAuthHeader(authHeader)) {
+                String jwt = authHeader.substring(7);
+                String userEmail = extractEmail(jwt);
 
                 if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                    UserDetails userDetails;
-                    try {
-                        userDetails = this.userDetailsService.loadUserByUsername(userEmail);
-                    } catch (UsernameNotFoundException e) {
-                        log.warn("User not found for JWT email: {}. Token may be stale.", userEmail);
-                        filterChain.doFilter(request, response);
+                    authenticateUser(request, response, jwt, userEmail);
+                    if (response.isCommitted())
                         return;
-                    }
-
-                    if (jwtUtils.isTokenValid(jwt, userDetails)) {
-                        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                                userDetails,
-                                null,
-                                userDetails.getAuthorities());
-                        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                        SecurityContextHolder.getContext().setAuthentication(authToken);
-
-                        // Set TenantContext from JWT claim or header
-                        String tenantId = request.getHeader("X-Tenant-ID");
-                        String orgId = null;
-
-                        if (tenantId != null && !tenantId.isEmpty()) {
-                            orgId = tenantId;
-                            log.debug("Tenant ID from header: {}", orgId);
-                        } else {
-                            orgId = jwtUtils.extractClaim(jwt, claims -> claims.get("org_id", String.class));
-                            if (orgId != null) {
-                                log.debug("Tenant ID from JWT: {}", orgId);
-                            }
-                        }
-
-                        if (orgId != null) {
-                            String schemaName = "tenant_" + orgId.replace("-", "_");
-                            TenantContext.setCurrentTenant(schemaName);
-                            log.debug("Identified tenant context: {} (Schema: {})", orgId, schemaName);
-                        }
-                    }
                 }
             }
             filterChain.doFilter(request, response);
         } finally {
             TenantContext.clear();
+        }
+    }
+
+    private boolean isValidAuthHeader(String authHeader) {
+        return authHeader != null && authHeader.startsWith("Bearer ") && authHeader.length() > 7;
+    }
+
+    private String extractEmail(String jwt) {
+        try {
+            return jwtUtils.extractUsername(jwt);
+        } catch (Exception e) {
+            log.warn("Failed to extract username from JWT: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private void authenticateUser(HttpServletRequest request, HttpServletResponse response, String jwt,
+            String userEmail) throws IOException {
+        UserDetails userDetails;
+        try {
+            userDetails = this.userDetailsService.loadUserByUsername(userEmail);
+        } catch (UsernameNotFoundException e) {
+            log.warn("User not found for JWT email: {}. Token may be stale.", userEmail);
+            return;
+        }
+
+        if (jwtUtils.isTokenValid(jwt, userDetails)) {
+            UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                    userDetails,
+                    null,
+                    userDetails.getAuthorities());
+            authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+            SecurityContextHolder.getContext().setAuthentication(authToken);
+
+            // Check if user is pending
+            if (isPendingUser(request, userEmail)) {
+                log.warn("Blocked pending user {} from accessing the system", userEmail);
+                response.sendError(HttpServletResponse.SC_FORBIDDEN, "Account pending approval");
+                return;
+            }
+
+            // Set TenantContext
+            setTenantContext(request, jwt);
+        }
+    }
+
+    private boolean isPendingUser(HttpServletRequest request, String userEmail) {
+        String path = request.getRequestURI();
+        if (!path.startsWith("/auth") && !path.startsWith("/api/onboarding")) {
+            User currentUser = userRepository.findByEmail(userEmail).orElse(null);
+            return currentUser != null && currentUser.getMembershipStatus() == MembershipStatus.PENDING;
+        }
+        return false;
+    }
+
+    private void setTenantContext(HttpServletRequest request, String jwt) {
+        String schemaNameHeader = request.getHeader("X-Tenant-Schema");
+        String schemaName = null;
+
+        if (schemaNameHeader != null && !schemaNameHeader.isEmpty()) {
+            schemaName = schemaNameHeader;
+        } else {
+            schemaName = jwtUtils.extractClaim(jwt, claims -> claims.get("schema_name", String.class));
+        }
+
+        if (schemaName != null) {
+            TenantContext.setCurrentTenant(schemaName);
+            log.debug("Identified tenant context: {}", schemaName);
         }
     }
 }

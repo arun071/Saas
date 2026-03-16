@@ -13,6 +13,9 @@ import java.sql.SQLException;
  * Provides database connections for different tenants by switching databases.
  * Uses setCatalog() instead of setSchema() because MySQL treats schemas as
  * catalogs (databases), and setSchema() is a no-op in MySQL Connector/J.
+ * 
+ * This class ensures that every hibernate session gets a connection pointed to
+ * the correct tenant database.
  */
 @Component
 @RequiredArgsConstructor
@@ -22,16 +25,35 @@ public class SchemaMultiTenantConnectionProvider implements MultiTenantConnectio
     private final DataSource dataSource;
     private static final String DEFAULT_SCHEMA = "saas_db";
 
+    /**
+     * Provides a connection to the default schema.
+     *
+     * @return A database connection.
+     * @throws SQLException If a database access error occurs.
+     */
     @Override
     public Connection getAnyConnection() throws SQLException {
         return dataSource.getConnection();
     }
 
+    /**
+     * Closes the given connection.
+     *
+     * @param connection The connection to release.
+     * @throws SQLException If a database access error occurs.
+     */
     @Override
     public void releaseAnyConnection(Connection connection) throws SQLException {
         connection.close();
     }
 
+    /**
+     * Provides a connection pointed to the specified tenant's database.
+     *
+     * @param tenantIdentifier The database name for the tenant.
+     * @return A connection configured for the tenant.
+     * @throws SQLException If a database access error occurs.
+     */
     @Override
     public Connection getConnection(String tenantIdentifier) throws SQLException {
         log.debug("Getting connection for tenant: {}", tenantIdentifier);
@@ -46,6 +68,13 @@ public class SchemaMultiTenantConnectionProvider implements MultiTenantConnectio
         return connection;
     }
 
+    /**
+     * Resets the connection to the default database and closes it.
+     *
+     * @param tenantIdentifier The database name for the tenant.
+     * @param connection       The connection to release.
+     * @throws SQLException If a database access error occurs.
+     */
     @Override
     public void releaseConnection(String tenantIdentifier, Connection connection) throws SQLException {
         log.debug("Releasing connection for tenant: {}", tenantIdentifier);

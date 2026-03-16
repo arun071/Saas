@@ -3,15 +3,20 @@ package com.saas.backend.service;
 import com.saas.backend.dto.AuthDtos.*;
 import com.saas.backend.entity.Organization;
 import com.saas.backend.entity.User;
+import com.saas.backend.enums.AuthProvider;
+import com.saas.backend.enums.MembershipStatus;
 import com.saas.backend.enums.Role;
 import com.saas.backend.repository.OrganizationRepository;
 import com.saas.backend.repository.UserRepository;
+import com.saas.backend.security.GoogleAuthVerifier;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.saas.backend.security.JwtUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import com.saas.backend.util.SnowflakeIdGenerator;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -29,6 +34,8 @@ public class AuthService {
         private final PasswordEncoder passwordEncoder;
         private final JwtUtils jwtUtils;
         private final AuthenticationManager authenticationManager;
+        private final SnowflakeIdGenerator snowflakeIdGenerator;
+        private final GoogleAuthVerifier googleAuthVerifier;
 
         /**
          * Registers a new organization and its primary administrator.
@@ -38,44 +45,42 @@ public class AuthService {
          */
         @Transactional
         public AuthResponse register(RegisterRequest request) {
-                // Create Organization and provision tenant schema (runs in its own transaction)
-                Organization organization = tenantProvisioningService.createTenant(request.getOrganizationName());
-                log.info("Tenant provisioned for organization: {} (ID: {})", organization.getName(),
-                                organization.getId());
-
-                // Re-attach the Organization to the current persistence context.
-                // createTenant() runs with REQUIRES_NEW, so the returned entity is detached.
-                organization = organizationRepository.getReferenceById(organization.getId());
-
-                // Create Admin User
-                User admin = User.builder()
+                User user = User.builder()
+                                .id(snowflakeIdGenerator.nextId())
                                 .name(request.getAdminName())
                                 .email(request.getAdminEmail())
                                 .password(passwordEncoder.encode(request.getAdminPassword()))
-                                .role(Role.ORG_ADMIN)
-                                .organization(organization)
-                                .build();
-                userRepository.save(admin);
-                log.info("Registered new admin user: {} for organization: {}", admin.getEmail(),
-                                organization.getName());
-
-                var userDetails = org.springframework.security.core.userdetails.User.builder()
-                                .username(admin.getEmail())
-                                .password(admin.getPassword())
-                                .authorities(admin.getRole().name())
                                 .build();
 
-                String jwtToken = jwtUtils.generateToken(userDetails, organization.getId().toString());
+                Organization organization = null;
+                String schemaName = null;
 
-                return AuthResponse.builder()
-                                .token(jwtToken)
-                                .email(admin.getEmail())
-                                .name(admin.getName())
-                                .role(admin.getRole().name())
-                                .organizationId(organization.getId().toString())
-                                .build();
+                if (request.getOrganizationName() != null && !request.getOrganizationName().trim().isEmpty()) {
+                        organization = tenantProvisioningService.createTenant(request.getOrganizationName());
+                        log.info("Tenant provisioned for organization: {} (ID: {})", organization.getName(),
+                                        organization.getId());
+
+                        organization = organizationRepository.getReferenceById(organization.getId());
+                        user.setOrganization(organization);
+                        user.setRole(Role.ORG_ADMIN);
+                        schemaName = "tenant_" + organization.getId().toString();
+                } else {
+                        user.setRole(Role.USER);
+                }
+
+                userRepository.save(user);
+                log.info("Registered new user: {} (Role: {}, Org: {})", user.getEmail(), user.getRole(),
+                                organization != null ? organization.getName() : "None");
+
+                return buildAuthResponse(user, organization, schemaName);
         }
 
+        /**
+         * Authenticates an existing user via email and password.
+         *
+         * @param request The login credentials.
+         * @return AuthResponse containing token and user profile.
+         */
         @Transactional(readOnly = true)
         public AuthResponse login(LoginRequest request) {
                 authenticationManager.authenticate(
@@ -86,23 +91,83 @@ public class AuthService {
                 User user = userRepository.findByEmail(request.getEmail())
                                 .orElseThrow(() -> new RuntimeException("User not found"));
 
+                Organization org = user.getOrganization();
+                String schemaName = org != null ? "tenant_" + org.getId().toString() : null;
+
+                log.info("User {} successfully logged in for organization: {}", user.getEmail(),
+                                org != null ? org.getName() : "None");
+
+                return buildAuthResponse(user, org, schemaName);
+        }
+
+        /**
+         * Authenticates a user via Google OAuth2 token.
+         *
+         * @param request The Google ID token string.
+         * @return AuthResponse containing token and user profile.
+         */
+        @Transactional
+        public AuthResponse googleLogin(GoogleLoginRequest request) {
+                GoogleIdToken.Payload payload = googleAuthVerifier.verify(request.getToken());
+                if (payload == null) {
+                        throw new RuntimeException("Invalid Google token");
+                }
+
+                String email = payload.getEmail();
+                String name = (String) payload.get("name");
+                String subjectId = payload.getSubject();
+
+                User user = userRepository.findByEmail(email).orElse(null);
+
+                if (user == null) {
+                        user = User.builder()
+                                        .id(snowflakeIdGenerator.nextId())
+                                        .name(name)
+                                        .email(email)
+                                        .authProvider(AuthProvider.GOOGLE)
+                                        .authProviderId(subjectId)
+                                        .role(Role.USER)
+                                        .membershipStatus(MembershipStatus.APPROVED)
+                                        .build();
+                        userRepository.save(user);
+                        log.info("Registered new Google user: {}", email);
+                } else if (user.getAuthProvider() == AuthProvider.LOCAL) {
+                        user.setAuthProvider(AuthProvider.GOOGLE);
+                        user.setAuthProviderId(subjectId);
+                        userRepository.save(user);
+                        log.info("Linked Google account to existing user: {}", email);
+                }
+
+                Organization org = user.getOrganization();
+                String schemaName = org != null ? "tenant_" + org.getId().toString() : null;
+
+                return buildAuthResponse(user, org, schemaName);
+        }
+
+        /**
+         * Internal helper to construct the AuthResponse and generate the JWT token.
+         *
+         * @param user         The authenticated user.
+         * @param organization The optional organization they belong to.
+         * @param schemaName   The optional database schema for the tenant.
+         * @return The standard AuthResponse.
+         */
+        private AuthResponse buildAuthResponse(User user, Organization organization, String schemaName) {
                 var userDetails = org.springframework.security.core.userdetails.User.builder()
                                 .username(user.getEmail())
-                                .password(user.getPassword())
+                                .password(user.getPassword() != null ? user.getPassword() : "")
                                 .authorities(user.getRole().name())
                                 .build();
 
-                String jwtToken = jwtUtils.generateToken(userDetails, user.getOrganization().getId().toString());
-
-                log.info("User {} successfully logged in for organization ID: {}", user.getEmail(),
-                                user.getOrganization().getId());
+                String orgIdStr = organization != null ? organization.getId().toString() : null;
+                String jwtToken = jwtUtils.generateToken(userDetails, orgIdStr, schemaName);
 
                 return AuthResponse.builder()
                                 .token(jwtToken)
                                 .email(user.getEmail())
                                 .name(user.getName())
                                 .role(user.getRole().name())
-                                .organizationId(user.getOrganization().getId().toString())
+                                .organizationId(orgIdStr)
                                 .build();
         }
 }

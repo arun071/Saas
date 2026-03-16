@@ -8,49 +8,56 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
+/**
+ * Container for Domain-related Data Transfer Objects (Workspaces, Projects,
+ * Todos, Users).
+ */
 public class DomainDtos {
 
+    /** DTO for Workspace details. */
     @Data
     @Builder
     @AllArgsConstructor
     @NoArgsConstructor
     public static class WorkspaceDto {
-        private UUID id;
+        private Long id;
         private String name;
         private LocalDateTime createdAt;
     }
 
+    /** DTO for Project details. */
     @Data
     @Builder
     @AllArgsConstructor
     @NoArgsConstructor
     public static class ProjectDto {
-        private UUID id;
+        private Long id;
         private String name;
-        private UUID workspaceId;
+        private Long workspaceId;
         private LocalDateTime createdAt;
     }
 
+    /** DTO for detailed Todo item information. */
     @Data
     @Builder
     @AllArgsConstructor
     @NoArgsConstructor
     public static class TodoDto {
-        private UUID id;
+        private Long id;
         private String title;
         private String description;
         private TodoStatus status;
         private TodoPriority priority;
-        private UUID assignedUserId;
+        private Long assignedUserId;
         private String assignedUserName;
-        private UUID projectId;
+        private Long projectId;
         private String projectName;
         private LocalDateTime dueDate;
         private LocalDateTime createdAt;
     }
 
+    /** DTO for creating or updating a Todo. */
     @Data
     @Builder
     @AllArgsConstructor
@@ -60,21 +67,32 @@ public class DomainDtos {
         private String description;
         private TodoStatus status;
         private TodoPriority priority;
-        private UUID assignedUserId;
-        private UUID projectId;
+        private Long assignedUserId;
+        private Long projectId;
         private LocalDateTime dueDate;
     }
 
+    /** DTO for creating or updating a Project. */
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class ProjectCreateRequest {
+        private String name;
+        private Long workspaceId;
+    }
+
+    /** DTO for User profile details within an organization context. */
     @Data
     @Builder
     @AllArgsConstructor
     @NoArgsConstructor
     public static class UserDto {
-        private UUID id;
+        private Long id;
         private String name;
         private String email;
         private String role;
-        private UUID organizationId;
+        private Long organizationId;
         private LocalDateTime createdAt;
     }
 

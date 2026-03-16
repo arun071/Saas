@@ -4,6 +4,13 @@ import api from "../services/api";
 import { Plus, Layout as LayoutIcon, ChevronRight, Loader2, Folder, Pencil, Trash2 } from "lucide-react";
 import { DashboardLayout } from "../components/layout/DashboardLayout";
 
+/**
+ * ProjectsPage component
+ * Displays and manages projects within a specific workspace.
+ * Provides functionality to create, update, and delete projects.
+ *
+ * @returns {JSX.Element} The rendered ProjectsPage component.
+ */
 const ProjectsPage = () => {
     const { workspaceId } = useParams();
     const navigate = useNavigate();
@@ -15,6 +22,9 @@ const ProjectsPage = () => {
     const [newProjectName, setNewProjectName] = useState("");
     const [editName, setEditName] = useState("");
 
+    /**
+     * Fetches projects associated with the current workspace.
+     */
     const fetchProjects = async () => {
         try {
             const response = await api.get(`/projects/workspace/${workspaceId}`);
@@ -30,6 +40,11 @@ const ProjectsPage = () => {
         if (workspaceId) fetchProjects();
     }, [workspaceId]);
 
+    /**
+     * Handles the creation of a new project.
+     *
+     * @param {Event} e - The form submission event.
+     */
     const handleCreate = async (e) => {
         e.preventDefault();
         try {
@@ -45,6 +60,11 @@ const ProjectsPage = () => {
         }
     };
 
+    /**
+     * Handles the update of an existing project's name.
+     *
+     * @param {Event} e - The form submission event.
+     */
     const handleUpdate = async (e) => {
         e.preventDefault();
         try {
@@ -57,6 +77,13 @@ const ProjectsPage = () => {
         }
     };
 
+    /**
+     * Handles the deletion of a project.
+     * Confirms deletion with the user before proceeding.
+     *
+     * @param {Event} e - The click event.
+     * @param {string} id - The ID of the project to delete.
+     */
     const handleDelete = async (e, id) => {
         e.stopPropagation();
         if (!window.confirm("Are you sure? This will delete the project and all its tasks.")) return;
@@ -68,6 +95,12 @@ const ProjectsPage = () => {
         }
     };
 
+    /**
+     * Opens the edit modal for a specific project.
+     *
+     * @param {Event} e - The click event.
+     * @param {Object} project - The project object to edit.
+     */
     const openEditModal = (e, project) => {
         e.stopPropagation();
         setProjectToEdit(project);

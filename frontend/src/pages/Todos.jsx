@@ -4,6 +4,13 @@ import api from "../services/api";
 import { Plus, CheckSquare, Search, Filter, Clock, MoreVertical, CheckCircle2, Circle, Loader2, Pencil, Trash2 } from "lucide-react";
 import { DashboardLayout } from "../components/layout/DashboardLayout";
 
+/**
+ * TodosPage component
+ * Displays and manages tasks (todos) within a specific project.
+ * Provides functionality to create, update, delete, and toggle the status of tasks.
+ *
+ * @returns {JSX.Element} The rendered TodosPage component.
+ */
 const TodosPage = () => {
     const { projectId } = useParams();
     const [todos, setTodos] = useState([]);
@@ -26,6 +33,9 @@ const TodosPage = () => {
         status: "TODO"
     });
 
+    /**
+     * Fetches todos associated with the current project.
+     */
     const fetchTodos = async () => {
         try {
             const response = await api.get("/todos", { params: { projectId } });
@@ -41,6 +51,11 @@ const TodosPage = () => {
         if (projectId) fetchTodos();
     }, [projectId]);
 
+    /**
+     * Handles the creation of a new todo task.
+     *
+     * @param {Event} e - The form submission event.
+     */
     const handleCreateTodo = async (e) => {
         e.preventDefault();
         try {
@@ -53,6 +68,11 @@ const TodosPage = () => {
         }
     };
 
+    /**
+     * Handles the update of an existing todo task.
+     *
+     * @param {Event} e - The form submission event.
+     */
     const handleUpdateTodo = async (e) => {
         e.preventDefault();
         try {
@@ -65,6 +85,12 @@ const TodosPage = () => {
         }
     };
 
+    /**
+     * Handles the deletion of a todo task.
+     * Confirms deletion with the user before proceeding.
+     *
+     * @param {string} id - The ID of the todo task to delete.
+     */
     const handleDeleteTodo = async (id) => {
         if (!window.confirm("Delete this task?")) return;
         try {
@@ -75,6 +101,11 @@ const TodosPage = () => {
         }
     };
 
+    /**
+     * Toggles the status of a todo task between 'DONE' and 'TODO'.
+     *
+     * @param {Object} todo - The todo task object to toggle.
+     */
     const toggleStatus = async (todo) => {
         const newStatus = todo.status === "DONE" ? "TODO" : "DONE";
         try {
@@ -85,6 +116,11 @@ const TodosPage = () => {
         }
     };
 
+    /**
+     * Opens the edit modal for a specific todo task.
+     *
+     * @param {Object} todo - The todo task object to edit.
+     */
     const openEditModal = (todo) => {
         setTodoToEdit(todo);
         setEditTodo({
@@ -143,8 +179,8 @@ const TodosPage = () => {
                             <button
                                 onClick={() => toggleStatus(todo)}
                                 className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all ${todo.status === 'DONE'
-                                        ? 'bg-indigo-600 border-indigo-600 text-white'
-                                        : 'border-slate-200 text-transparent hover:border-indigo-400'
+                                    ? 'bg-indigo-600 border-indigo-600 text-white'
+                                    : 'border-slate-200 text-transparent hover:border-indigo-400'
                                     }`}
                             >
                                 {todo.status === 'DONE' ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
@@ -159,8 +195,8 @@ const TodosPage = () => {
 
                             <div className="flex items-center gap-2">
                                 <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${todo.priority === 'HIGH' ? 'bg-red-50 text-red-600' :
-                                        todo.priority === 'MEDIUM' ? 'bg-amber-50 text-amber-600' :
-                                            'bg-emerald-50 text-emerald-600'
+                                    todo.priority === 'MEDIUM' ? 'bg-amber-50 text-amber-600' :
+                                        'bg-emerald-50 text-emerald-600'
                                     }`}>
                                     {todo.priority}
                                 </span>

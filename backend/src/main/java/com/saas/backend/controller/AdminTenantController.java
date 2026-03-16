@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * Administrative controller for system-level operations.
+ * Provides endpoints for managing tenants (organizations) at a global level.
  */
 @RestController
 @RequestMapping("/api/admin")
@@ -19,6 +20,15 @@ public class AdminTenantController {
 
     private final TenantProvisioningService tenantProvisioningService;
 
+    /**
+     * Creates a new tenant (organization) in the system.
+     * This involves creating the organization record, its dedicated database
+     * schema,
+     * and running the initial migrations.
+     *
+     * @param name The name of the organization to create.
+     * @return The created Organization entity.
+     */
     @PostMapping("/tenants")
     @PreAuthorize("hasAuthority('SYSTEM_ADMIN')")
     public ResponseEntity<Organization> createTenant(@RequestParam String name) {

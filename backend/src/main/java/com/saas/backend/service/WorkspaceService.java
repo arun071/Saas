@@ -10,8 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
-
-import java.util.UUID;
+import com.saas.backend.util.SnowflakeIdGenerator;
 
 /**
  * Service for managing workspaces.
@@ -25,12 +24,21 @@ public class WorkspaceService {
 
     private final WorkspaceRepository workspaceRepository;
     private final EntityMapper entityMapper;
+    private final SnowflakeIdGenerator snowflakeIdGenerator;
 
+    /**
+     * Creates a new workspace.
+     * Only ORG_ADMINs can create workspaces.
+     *
+     * @param name The name of the workspace.
+     * @return The created WorkspaceDto.
+     */
     @PreAuthorize("hasAuthority('ORG_ADMIN')")
     public WorkspaceDto createWorkspace(String name) {
         String schemaName = TenantContext.getCurrentTenant();
 
         Workspace workspace = Workspace.builder()
+                .id(snowflakeIdGenerator.nextId())
                 .name(name)
                 .build();
 
@@ -39,13 +47,27 @@ public class WorkspaceService {
         return entityMapper.toDto(workspace);
     }
 
+    /**
+     * Lists all workspaces in the current tenant.
+     *
+     * @param pageable Pagination info.
+     * @return Page of WorkspaceDtos.
+     */
     public Page<WorkspaceDto> listWorkspaces(Pageable pageable) {
         return workspaceRepository.findAll(pageable)
                 .map(entityMapper::toDto);
     }
 
+    /**
+     * Updates an existing workspace.
+     * Only ORG_ADMINs can update workspaces.
+     *
+     * @param id   The ID of the workspace.
+     * @param name The new name.
+     * @return The updated WorkspaceDto.
+     */
     @PreAuthorize("hasAuthority('ORG_ADMIN')")
-    public WorkspaceDto updateWorkspace(UUID id, String name) {
+    public WorkspaceDto updateWorkspace(Long id, String name) {
         String schemaName = TenantContext.getCurrentTenant();
         Workspace workspace = workspaceRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Workspace not found"));
@@ -56,8 +78,14 @@ public class WorkspaceService {
         return entityMapper.toDto(updated);
     }
 
+    /**
+     * Deletes a workspace and all its data.
+     * Only ORG_ADMINs can delete workspaces.
+     *
+     * @param id The ID of the workspace to delete.
+     */
     @PreAuthorize("hasAuthority('ORG_ADMIN')")
-    public void deleteWorkspace(UUID id) {
+    public void deleteWorkspace(Long id) {
         String schemaName = TenantContext.getCurrentTenant();
         Workspace workspace = workspaceRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Workspace not found"));

@@ -16,6 +16,9 @@ import java.util.Map;
 
 /**
  * Configures Hibernate to use SCHEMA-based multi-tenancy.
+ * This class sets up the JPA EntityManagerFactory with multi-tenancy support,
+ * allowing the application to dynamically switch database schemas based on the
+ * current tenant.
  */
 @Configuration
 @RequiredArgsConstructor
@@ -23,11 +26,29 @@ public class HibernateConfig {
 
     private final JpaProperties jpaProperties;
 
+    /**
+     * Configures the JPA vendor adapter for Hibernate.
+     *
+     * @return The JpaVendorAdapter bean.
+     */
     @Bean
     public JpaVendorAdapter jpaVendorAdapter() {
         return new HibernateJpaVendorAdapter();
     }
 
+    /**
+     * Configures the LocalContainerEntityManagerFactoryBean with multi-tenancy
+     * settings.
+     * Integrates the custom MultiTenantConnectionProvider and
+     * CurrentTenantIdentifierResolver.
+     *
+     * @param dataSource                    The database data source.
+     * @param multiTenantConnectionProvider The provider for tenant-aware
+     *                                      connections.
+     * @param tenantIdentifierResolver      The resolver for identifying the current
+     *                                      tenant.
+     * @return The EntityManagerFactory bean.
+     */
     @Bean
     public LocalContainerEntityManagerFactoryBean entityManagerFactory(
             DataSource dataSource,

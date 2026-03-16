@@ -1,8 +1,9 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import api from "../services/api";
-import { Plus, Briefcase, ChevronRight, Loader2, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Plus, Briefcase, ChevronRight, Loader2, MoreVertical, Pencil, Trash2, Settings } from "lucide-react";
 import { DashboardLayout } from "../components/layout/DashboardLayout";
+import { useAuth } from "../context/AuthContext";
 
 const WorkspacesPage = () => {
     const [workspaces, setWorkspaces] = useState([]);
@@ -13,6 +14,7 @@ const WorkspacesPage = () => {
     const [newWorkspaceName, setNewWorkspaceName] = useState("");
     const [editName, setEditName] = useState("");
 
+    const { user } = useAuth();
     const navigate = useNavigate();
 
     const fetchWorkspaces = async () => {
@@ -79,13 +81,24 @@ const WorkspacesPage = () => {
                     <h2 className="text-2xl font-bold text-slate-900">Workspaces</h2>
                     <p className="text-slate-500 text-sm mt-1">Manage your organization's work environments</p>
                 </div>
-                <button
-                    onClick={() => setIsCreateModalOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100"
-                >
-                    <Plus className="w-4 h-4" />
-                    New Workspace
-                </button>
+                <div className="flex gap-4">
+                    {user?.role === 'ORG_ADMIN' && (
+                        <button
+                            onClick={() => navigate("/admin/onboarding")}
+                            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all shadow-sm"
+                        >
+                            <Settings className="w-4 h-4" />
+                            Org Settings
+                        </button>
+                    )}
+                    <button
+                        onClick={() => setIsCreateModalOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100"
+                    >
+                        <Plus className="w-4 h-4" />
+                        New Workspace
+                    </button>
+                </div>
             </div>
 
             {loading ? (

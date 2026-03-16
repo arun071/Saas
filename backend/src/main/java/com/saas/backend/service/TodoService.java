@@ -13,8 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-
-import java.util.UUID;
+import com.saas.backend.util.SnowflakeIdGenerator;
 
 /**
  * Service for managing individual tasks (Todos) within a project.
@@ -30,7 +29,14 @@ public class TodoService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final EntityMapper entityMapper;
+    private final SnowflakeIdGenerator snowflakeIdGenerator;
 
+    /**
+     * Creates a new todo item.
+     *
+     * @param request The todo creation details.
+     * @return The created TodoDto.
+     */
     public TodoDto createTodo(TodoCreateRequest request) {
         String schemaName = TenantContext.getCurrentTenant();
 
@@ -41,14 +47,13 @@ public class TodoService {
         if (request.getAssignedUserId() != null) {
             assignedUser = userRepository.findById(request.getAssignedUserId())
                     .orElseThrow(() -> new RuntimeException("User not found"));
-            // Note: Since users are in master schema, cross-schema checks might be needed
-            // but for now we assume valid ID means valid access if retrieved.
         }
 
         Todo todo = Todo.builder()
+                .id(snowflakeIdGenerator.nextId())
                 .title(request.getTitle())
                 .description(request.getDescription())
-                .status(request.getStatus())
+                .status(request.getStatus() != null ? request.getStatus() : TodoStatus.TODO)
                 .priority(request.getPriority())
                 .project(project)
                 .assignedUser(assignedUser)
@@ -61,12 +66,26 @@ public class TodoService {
         return entityMapper.toDto(todo);
     }
 
-    public Page<TodoDto> listTodosByProject(UUID projectId, Pageable pageable) {
+    /**
+     * Lists todos for a specific project.
+     *
+     * @param projectId The project ID.
+     * @param pageable  Pagination.
+     * @return Page of TodoDtos.
+     */
+    public Page<TodoDto> listTodosByProject(Long projectId, Pageable pageable) {
         return todoRepository.findByProjectId(projectId, pageable)
                 .map(entityMapper::toDto);
     }
 
-    public TodoDto updateStatus(UUID id, TodoStatus status) {
+    /**
+     * Updates the status of a todo.
+     *
+     * @param id     The todo ID.
+     * @param status The new status.
+     * @return The updated TodoDto.
+     */
+    public TodoDto updateStatus(Long id, TodoStatus status) {
         String schemaName = TenantContext.getCurrentTenant();
         Todo todo = todoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Todo not found"));
@@ -77,7 +96,12 @@ public class TodoService {
         return entityMapper.toDto(updated);
     }
 
-    public void deleteTodo(UUID id) {
+    /**
+     * Deletes a todo.
+     *
+     * @param id The todo ID.
+     */
+    public void deleteTodo(Long id) {
         String schemaName = TenantContext.getCurrentTenant();
         Todo todo = todoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Todo not found"));
@@ -86,22 +110,38 @@ public class TodoService {
         log.info("Deleted todo ID: {} in schema: {}", id, schemaName);
     }
 
-    public Page<TodoDto> listTodosWithFilters(UUID projectId, UUID assignedUserId, TodoStatus status,
+    /**
+     * Lists todos with optional filtering by project, user, or status.
+     *
+     * @param projectId      Optional project filter.
+     * @param assignedUserId Optional user filter.
+     * @param status         Optional status filter.
+     * @param pageable       Pagination.
+     * @return Page of TodoDtos.
+     */
+    public Page<TodoDto> listTodosWithFilters(Long projectId, Long assignedUserId, TodoStatus status,
             Pageable pageable) {
+        // Priority: Project > User > Status > All
         if (projectId != null) {
-            return todoRepository.findByProjectId(projectId, pageable)
-                    .map(entityMapper::toDto);
-        } else if (assignedUserId != null) {
-            return todoRepository.findByAssignedUserId(assignedUserId, pageable)
-                    .map(entityMapper::toDto);
-        } else if (status != null) {
-            return todoRepository.findByStatus(status, pageable).map(entityMapper::toDto);
-        } else {
-            return todoRepository.findAll(pageable).map(entityMapper::toDto);
+            return todoRepository.findByProjectId(projectId, pageable).map(entityMapper::toDto);
         }
+        if (assignedUserId != null) {
+            return todoRepository.findByAssignedUserId(assignedUserId, pageable).map(entityMapper::toDto);
+        }
+        if (status != null) {
+            return todoRepository.findByStatus(status, pageable).map(entityMapper::toDto);
+        }
+        return todoRepository.findAll(pageable).map(entityMapper::toDto);
     }
 
-    public TodoDto updateTodo(UUID id, TodoCreateRequest request) {
+    /**
+     * Updates an existing todo item.
+     *
+     * @param id      The todo ID.
+     * @param request The updated details.
+     * @return The updated TodoDto.
+     */
+    public TodoDto updateTodo(Long id, TodoCreateRequest request) {
         String schemaName = TenantContext.getCurrentTenant();
         Todo todo = todoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Todo not found"));
@@ -116,6 +156,8 @@ public class TodoService {
             User assignedUser = userRepository.findById(request.getAssignedUserId())
                     .orElseThrow(() -> new RuntimeException("User not found"));
             todo.setAssignedUser(assignedUser);
+        } else {
+            todo.setAssignedUser(null);
         }
 
         Todo updated = todoRepository.save(todo);

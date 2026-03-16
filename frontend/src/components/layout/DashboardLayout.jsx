@@ -4,6 +4,13 @@ import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import { LogOut, Layout as LayoutIcon, CheckSquare, Briefcase, ChevronRight, Hash, Folder } from "lucide-react";
 
+/**
+ * Main application layout containing side navigation and user workspace context.
+ * Fetches and displays workspaces and projects relevant to the current user.
+ * 
+ * @param {Object} props - Component props.
+ * @param {React.ReactNode} props.children - Dashboard page content.
+ */
 export const DashboardLayout = ({ children }) => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
